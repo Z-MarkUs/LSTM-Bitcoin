@@ -1,0 +1,13 @@
+,description
+mempool_size,The aggregate size of transactions waiting to be confirmed.
+transaction_rate,The number of Bitcoin transactions added to the mempool per second.
+market_cap_usd,"The total USD value of bitcoin supply in circulation, as calculated by the daily average market price across major exchanges."
+average_block_size,The average block size in MB.
+market_price_usd,Average USD market price across major bitcoin exchanges.
+exchange_volume_usd,The total USD value of trading volume on major bitcoin exchanges.
+average_confirmation_time,"The average time taken for a transaction to be combined 
+    in a Bitcoin block with other transactions and added to the blockchain."
+hash_rate,The estimated number of tera hashes per second (trillions of hashes per second) the Bitcoin network is performing.
+difficulty,A relative measure of how difficult it is to find a new block. The difficulty is adjusted periodically as a function of how much hashing power has been deployed by the network of miners.
+miners_revenue,Total value of coinbase block rewards and transaction fees paid to miners.
+total_transaction_fees,The total value of all transaction fees paid to miners (not including the coinbase value of block rewards).

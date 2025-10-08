@@ -1,0 +1,12 @@
+,description
+market_price_usd,Average USD market price across major Bitcoin exchanges.
+total_supply,"The total number of Bitcoins in circulation having been mined since Genesis, the first block in the chain."
+market_cap_usd,"The total USD value of bitcoin supply in circulation, as calculated by the daily average market price across major exchanges."
+realised_cap_usd,"An alternative to market cap, calculated by taking the total sum of the price of each Bitcoin when it was last moved."
+nupl,"Net Unrealized Profit/Loss (NUPL) estimates the total paper profit/loss of Bitcoin investors, calculated with the formula: 1 - realised_cap / market_cap"
+coin_days_destroyed,Coin Days Destroyed (CDD) takes the number of coins that have moved on-chain at a particular time and multiples that value by the number of days since those coins were last moved.
+active_addresses,The number of addresses on the Bitcoin blockchain that either sent or received transactions.
+fear_greed_value,Proprietary multi-factor Bitcoin market sentiment index produced by lookintobitcoin.com: a value of 0 indicates extreme levels of investor fear and 100 indicates extreme levels of investor greed.
+fear_greed_category,"Maps the numerical value of Fear and Greed to a 5-point Likert scale: Extreme Fear, Fear, Neutral, Greed, Extreme Greed."
+lightning_nodes,"The total number of Bitcoin Lightning nodes, measured weekly and forward filled for the rest of the week."
+lightning_capacity_usd,This chart shows the cumulative capacity held by all nodes on the Lightning Network in USD.
