@@ -6,7 +6,6 @@ import importlib.metadata
 import json
 import platform
 import shutil
-# Only fixed, non-shell Git inspection commands are used below.
 import subprocess  # nosec B404
 import sys
 from dataclasses import asdict
