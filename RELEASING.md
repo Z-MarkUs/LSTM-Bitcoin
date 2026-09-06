@@ -69,6 +69,11 @@ provenance attestations. After those jobs pass, the release workflow verifies th
 annotated tag, main-branch ancestry, artifacts, checksums, and attestations before
 creating the GitHub release.
 
+The reference archive is a deterministic snapshot of the complete tracked tree plus
+an internal manifest that binds every file to the verified tag commit and its SHA-256.
+It therefore carries the code, lockfile, frozen data, data-license notice, notebook,
+and reviewed evidence needed to inspect or rerun the study together.
+
 The reference bundle contains research evidence, not a claim of trading profitability.
 Do not publish to PyPI or another registry without a separate maintainer decision and
 trusted-publisher review.

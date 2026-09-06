@@ -92,6 +92,8 @@ jobs:
       PYTHONHASHSEED: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Install uv and Python
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
@@ -123,7 +125,12 @@ jobs:
         run: >-
           uv run --frozen lstm-bitcoin verify
           --run evaluation/results/reference-v1
-      - name: Bind evidence to the tracked inputs
+      - name: Validate the frozen data and source declaration
+        run: >-
+          uv run --frozen lstm-bitcoin data validate
+          --data data/btc_usd_daily.csv
+          --manifest data/source-manifest.json
+      - name: Bind evidence to the tracked inputs and code
         shell: bash
         run: |
           set -euo pipefail
@@ -132,6 +139,8 @@ jobs:
           import json
           import pathlib
           import re
+          import subprocess
+          import tomllib
 
           root = pathlib.Path.cwd()
 
@@ -148,8 +157,28 @@ jobs:
           )
           inputs = run_manifest["inputs"]
           code = run_manifest["code"]
-          assert re.fullmatch(r"[0-9a-f]{40}", code["revision"])
+          revision = code["revision"]
+          assert re.fullmatch(r"[0-9a-f]{40}", revision)
           assert code["dirty"] is False
+          subprocess.run(
+              ["git", "merge-base", "--is-ancestor", revision, "HEAD"], check=True
+          )
+          model_paths = (
+              "src/lstm_bitcoin",
+              "configs/reference.toml",
+              "data/btc_usd_daily.csv",
+              "data/source-manifest.json",
+              "pyproject.toml",
+              "uv.lock",
+          )
+          changed_model_paths = subprocess.check_output(
+              ["git", "diff", "--name-only", f"{revision}..HEAD", "--", *model_paths],
+              text=True,
+          ).splitlines()
+          assert not changed_model_paths, (
+              "model-affecting files changed after the recorded clean revision: "
+              f"{changed_model_paths}"
+          )
           assert inputs["config_sha256"] == digest(root / "configs/reference.toml")
           assert inputs["data_sha256"] == digest(root / "data/btc_usd_daily.csv")
           assert inputs["source_manifest_sha256"] == digest(
@@ -157,6 +186,9 @@ jobs:
           )
           assert inputs["source"] == source_manifest["source"]
           assert inputs["processed"] == source_manifest["processed"]
+          with (root / "pyproject.toml").open("rb") as handle:
+              project_version = tomllib.load(handle)["project"]["version"]
+          assert code["package_version"] == project_version
           PY
 
   build:
@@ -187,8 +219,20 @@ jobs:
           import tarfile
           import zipfile
 
-          distributions = sorted(pathlib.Path("dist").iterdir())
+          distribution_root = pathlib.Path("dist")
+          entries = sorted(distribution_root.iterdir())
+          distributions = [
+              path
+              for path in entries
+              if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+          ]
           assert len(distributions) == 2, distributions
+          unexpected = [
+              path.name
+              for path in entries
+              if path not in distributions and path.name != ".gitignore"
+          ]
+          assert not unexpected, f"unexpected build output: {unexpected}"
 
           forbidden_suffixes = (
               ".h5",
@@ -322,44 +366,64 @@ jobs:
           reference_stage="build/$reference_root"
 
           rm -rf "$reference_stage"
-          mkdir -p "$reference_stage/data" "$reference_stage/evaluation/results"
-          cp README.md DATA_LICENSE.md LICENSE "$reference_stage/"
-          cp data/source-manifest.json "$reference_stage/data/"
-          cp evaluation/README.md "$reference_stage/evaluation/"
-          cp -R evaluation/results/reference-v1 "$reference_stage/evaluation/results/"
+          mkdir -p "$reference_stage"
+          git archive --format=tar HEAD | tar --extract --file=- --directory "$reference_stage"
+          uv run --frozen python - "$reference_stage" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          stage = pathlib.Path(sys.argv[1])
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+          tracked = sorted(path for path in tracked if path)
+          files = {
+              path: hashlib.sha256(stage.joinpath(path).read_bytes()).hexdigest()
+              for path in tracked
+          }
+          manifest = {
+              "files": files,
+              "schema_version": 1,
+              "source_revision": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+          }
+          stage.joinpath("REFERENCE_MANIFEST.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
           tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
             --create --file=- --directory build "$reference_root" \
             | gzip --no-name > "dist/$reference"
           uv run --frozen python - "dist/$reference" "$reference_root" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
           import sys
           import tarfile
 
           archive_path, root = sys.argv[1:]
-          expected = {
-              f"{root}/README.md",
-              f"{root}/DATA_LICENSE.md",
-              f"{root}/LICENSE",
-              f"{root}/data/source-manifest.json",
-              f"{root}/evaluation/README.md",
-              *{
-                  f"{root}/evaluation/results/reference-v1/{name}"
-                  for name in (
-                      "SHA256SUMS",
-                      "fold_metrics.csv",
-                      "folds.csv",
-                      "manifest.json",
-                      "metrics.json",
-                      "predictions.csv",
-                      "seed_metrics.csv",
-                      "seed_predictions.csv",
-                      "signal_metrics.csv",
-                      "signal_simulation.csv",
-                      "training.csv",
-                  )
-              },
-          }
           with tarfile.open(archive_path, "r:gz") as archive:
+              manifest_name = f"{root}/REFERENCE_MANIFEST.json"
+              manifest_file = archive.extractfile(manifest_name)
+              assert manifest_file is not None
+              manifest = json.load(manifest_file)
+              assert manifest["schema_version"] == 1
+              assert manifest["source_revision"] == subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip()
+              tracked = manifest["files"]
+              assert isinstance(tracked, dict) and tracked
+              for path, expected_digest in tracked.items():
+                  parsed = pathlib.PurePosixPath(path)
+                  assert not parsed.is_absolute() and ".." not in parsed.parts
+                  payload = archive.extractfile(f"{root}/{path}")
+                  assert payload is not None, path
+                  assert hashlib.sha256(payload.read()).hexdigest() == expected_digest
               actual = {member.name for member in archive.getmembers() if member.isfile()}
+          expected = {f"{root}/{path}" for path in tracked} | {manifest_name}
           assert actual == expected, f"reference archive differs: {sorted(actual ^ expected)}"
           PY
           (
@@ -372,6 +436,7 @@ jobs:
         with:
           name: release-assets-${{ github.run_attempt }}
           path: dist/
+          include-hidden-files: false
           if-no-files-found: error
           retention-days: 14
 

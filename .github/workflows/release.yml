@@ -117,35 +117,46 @@ jobs:
             "lstm_bitcoin_research-${RELEASE_VERSION}/PKG-INFO" \
             | grep --fixed-strings --line-regexp "Version: $RELEASE_VERSION"
           python - "$reference" "lstm-bitcoin-reference-${RELEASE_VERSION}" <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
           import sys
           import tarfile
 
           archive_path, root = sys.argv[1:]
-          expected = {
-              f"{root}/README.md",
-              f"{root}/DATA_LICENSE.md",
-              f"{root}/LICENSE",
-              f"{root}/data/source-manifest.json",
-              f"{root}/evaluation/README.md",
-              *{
-                  f"{root}/evaluation/results/reference-v1/{name}"
-                  for name in (
-                      "SHA256SUMS",
-                      "fold_metrics.csv",
-                      "folds.csv",
-                      "manifest.json",
-                      "metrics.json",
-                      "predictions.csv",
-                      "seed_metrics.csv",
-                      "seed_predictions.csv",
-                      "signal_metrics.csv",
-                      "signal_simulation.csv",
-                      "training.csv",
-                  )
-              },
-          }
           with tarfile.open(archive_path, "r:gz") as archive:
+              manifest_name = f"{root}/REFERENCE_MANIFEST.json"
+              manifest_file = archive.extractfile(manifest_name)
+              assert manifest_file is not None
+              manifest = json.load(manifest_file)
+              assert manifest["schema_version"] == 1
+              assert manifest["source_revision"] == os.environ["VERIFIED_CI_SHA"]
+              tracked = manifest["files"]
+              assert isinstance(tracked, dict) and tracked
+              required = {
+                  "README.md",
+                  "DATA_LICENSE.md",
+                  "LICENSE",
+                  "configs/reference.toml",
+                  "data/btc_usd_daily.csv",
+                  "data/source-manifest.json",
+                  "evaluation/results/reference-v1/SHA256SUMS",
+                  "evaluation/results/reference-v1/manifest.json",
+                  "evaluation/results/reference-v1/metrics.json",
+                  "pyproject.toml",
+                  "src/lstm_bitcoin/cli.py",
+                  "uv.lock",
+              }
+              assert required <= set(tracked), f"reference archive missing {sorted(required - set(tracked))}"
+              for path, expected_digest in tracked.items():
+                  parsed = pathlib.PurePosixPath(path)
+                  assert not parsed.is_absolute() and ".." not in parsed.parts
+                  payload = archive.extractfile(f"{root}/{path}")
+                  assert payload is not None, path
+                  assert hashlib.sha256(payload.read()).hexdigest() == expected_digest
               actual = {member.name for member in archive.getmembers() if member.isfile()}
+          expected = {f"{root}/{path}" for path in tracked} | {manifest_name}
           assert actual == expected, f"reference archive differs: {sorted(actual ^ expected)}"
           PY
           jq --exit-status \
