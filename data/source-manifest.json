@@ -1,0 +1,36 @@
+{
+  "processed": {
+    "date_filter": {
+      "end_inclusive": "2025-12-31",
+      "reason": "freeze complete calendar years through 2025 for time-ordered evaluation",
+      "start_inclusive": "2013-01-01"
+    },
+    "end_date": "2025-12-31",
+    "missing_value_policy": "skip source rows with missing PriceUSD before filtering; require the retained reference period to be gap-free",
+    "output_columns": [
+      "date",
+      "close_usd"
+    ],
+    "path": "data/btc_usd_daily.csv",
+    "rows": 4748,
+    "selected_columns": [
+      "time",
+      "PriceUSD"
+    ],
+    "sha256": "a873c628babe5a9978498e918ddcebc8115a6beedfd53a8062d372e864d3ee22",
+    "source_rows_skipped_for_missing_price": 562,
+    "start_date": "2013-01-01"
+  },
+  "schema_version": 1,
+  "source": {
+    "attribution": "Coin Metrics Community Data, BTC daily PriceUSD",
+    "commit": "f1a36afb962731c387bb03982758ab0103063da5",
+    "license": "CC BY-NC 4.0",
+    "path": "csv/btc.csv",
+    "repository": "https://github.com/coinmetrics/data",
+    "sha256": "06495ff8e643432e6948b7b4686ce44fc106217287dabdc1b38351d9ddec46c3",
+    "timestamp_convention": "PriceUSD daily close at the 00:00 UTC cutoff, labeled by Coin Metrics using the beginning-of-interval date convention",
+    "timezone": "UTC",
+    "url": "https://raw.githubusercontent.com/coinmetrics/data/f1a36afb962731c387bb03982758ab0103063da5/csv/btc.csv"
+  }
+}

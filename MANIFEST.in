@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include DATA_LICENSE.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+include RELEASING.md
+recursive-include src/lstm_bitcoin py.typed
+prune data
+prune evaluation
+prune notebooks
+prune docs
+prune tests
+global-exclude *.py[cod]
+global-exclude .DS_Store
+

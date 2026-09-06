@@ -1,0 +1,23 @@
+.coverage
+coverage.xml
+.DS_Store
+.env
+.idea/
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+build/
+dist/
+*.egg-info/
+*.h5
+*.keras
+*.onnx
+*.pt
+*.pth
+*.py[cod]
+
+# Local experiment output. The reviewed reference run is explicitly tracked.
+evaluation/runs/

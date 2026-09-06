@@ -1,0 +1,204 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish attested GitHub release
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+    steps:
+      - name: Validate annotated tag and main-branch ancestry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_CANDIDATE: ${{ github.event.workflow_run.head_branch }}
+          VERIFIED_CI_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="$RELEASE_TAG_CANDIDATE"
+          if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Release tag must use vMAJOR.MINOR.PATCH: $tag" >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+
+          tag_type="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag" \
+              --jq '.object.type'
+          )"
+          tag_object_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$tag" \
+              --jq '.object.sha'
+          )"
+          if [[ "$tag_type" != "tag" ]]; then
+            echo "Release tag must be annotated: $tag" >&2
+            exit 1
+          fi
+
+          peeled_type="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_object_sha" \
+              --jq '.object.type'
+          )"
+          peeled_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/tags/$tag_object_sha" \
+              --jq '.object.sha'
+          )"
+          if [[ "$peeled_type" != "commit" || "$peeled_sha" != "$VERIFIED_CI_SHA" ]]; then
+            echo "Annotated tag does not identify the commit verified by CI" >&2
+            exit 1
+          fi
+
+          comparison="$(
+            gh api "repos/${GITHUB_REPOSITORY}/compare/${peeled_sha}...main"
+          )"
+          comparison_status="$(jq --raw-output '.status' <<<"$comparison")"
+          merge_base_sha="$(jq --raw-output '.merge_base_commit.sha' <<<"$comparison")"
+          if [[ "$merge_base_sha" != "$peeled_sha" ]] \
+            || [[ "$comparison_status" != "ahead" && "$comparison_status" != "identical" ]]; then
+            echo "Release commit must be contained in main" >&2
+            exit 1
+          fi
+
+          printf 'RELEASE_TAG=%s\n' "$tag" >> "$GITHUB_ENV"
+          printf 'RELEASE_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+          printf 'RELEASE_TAG_OBJECT_SHA=%s\n' "$tag_object_sha" >> "$GITHUB_ENV"
+          printf 'VERIFIED_CI_SHA=%s\n' "$peeled_sha" >> "$GITHUB_ENV"
+      - name: Download assets from the verified CI attempt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets-${{ github.event.workflow_run.run_attempt }}
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Validate versions, contents, and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          wheel="dist/lstm_bitcoin_research-${RELEASE_VERSION}-py3-none-any.whl"
+          sdist="dist/lstm_bitcoin_research-${RELEASE_VERSION}.tar.gz"
+          reference="dist/lstm-bitcoin-reference-${RELEASE_VERSION}.tar.gz"
+          sbom="dist/lstm-bitcoin-runtime-sbom-${RELEASE_VERSION}.cdx.json"
+          checksums="dist/SHA256SUMS"
+
+          test -f "$wheel"
+          test -f "$sdist"
+          test -f "$reference"
+          test -f "$sbom"
+          test -f "$checksums"
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 5
+
+          unzip -p "$wheel" \
+            "lstm_bitcoin_research-${RELEASE_VERSION}.dist-info/METADATA" \
+            | grep --fixed-strings --line-regexp "Version: $RELEASE_VERSION"
+          tar -xOf "$sdist" \
+            "lstm_bitcoin_research-${RELEASE_VERSION}/PKG-INFO" \
+            | grep --fixed-strings --line-regexp "Version: $RELEASE_VERSION"
+          python - "$reference" "lstm-bitcoin-reference-${RELEASE_VERSION}" <<'PY'
+          import sys
+          import tarfile
+
+          archive_path, root = sys.argv[1:]
+          expected = {
+              f"{root}/README.md",
+              f"{root}/DATA_LICENSE.md",
+              f"{root}/LICENSE",
+              f"{root}/data/source-manifest.json",
+              f"{root}/evaluation/README.md",
+              *{
+                  f"{root}/evaluation/results/reference-v1/{name}"
+                  for name in (
+                      "SHA256SUMS",
+                      "fold_metrics.csv",
+                      "folds.csv",
+                      "manifest.json",
+                      "metrics.json",
+                      "predictions.csv",
+                      "seed_metrics.csv",
+                      "seed_predictions.csv",
+                      "signal_metrics.csv",
+                      "signal_simulation.csv",
+                      "training.csv",
+                  )
+              },
+          }
+          with tarfile.open(archive_path, "r:gz") as archive:
+              actual = {member.name for member in archive.getmembers() if member.isfile()}
+          assert actual == expected, f"reference archive differs: {sorted(actual ^ expected)}"
+          PY
+          jq --exit-status \
+            '.bomFormat == "CycloneDX" and (.components | length > 0)' \
+            "$sbom" >/dev/null
+
+          (cd dist && sha256sum --check SHA256SUMS)
+      - name: Verify tag-build provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for artifact in \
+            "dist/lstm_bitcoin_research-${RELEASE_VERSION}-py3-none-any.whl" \
+            "dist/lstm_bitcoin_research-${RELEASE_VERSION}.tar.gz" \
+            "dist/lstm-bitcoin-reference-${RELEASE_VERSION}.tar.gz" \
+            "dist/lstm-bitcoin-runtime-sbom-${RELEASE_VERSION}.cdx.json" \
+            "dist/SHA256SUMS"; do
+            gh attestation verify "$artifact" \
+              --repo "$GITHUB_REPOSITORY" \
+              --source-ref "refs/tags/$RELEASE_TAG" \
+              --source-digest "$VERIFIED_CI_SHA" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml"
+          done
+      - name: Publish verified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current_tag_ref="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$RELEASE_TAG"
+          )"
+          current_tag_type="$(jq --raw-output '.object.type' <<<"$current_tag_ref")"
+          current_tag_object_sha="$(jq --raw-output '.object.sha' <<<"$current_tag_ref")"
+          if [[ "$current_tag_type" != "tag" ]] \
+            || [[ "$current_tag_object_sha" != "$RELEASE_TAG_OBJECT_SHA" ]]; then
+            echo "Release tag changed after validation" >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            "dist/lstm_bitcoin_research-${RELEASE_VERSION}-py3-none-any.whl" \
+            "dist/lstm_bitcoin_research-${RELEASE_VERSION}.tar.gz" \
+            "dist/lstm-bitcoin-reference-${RELEASE_VERSION}.tar.gz" \
+            "dist/lstm-bitcoin-runtime-sbom-${RELEASE_VERSION}.cdx.json" \
+            "dist/SHA256SUMS" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "LSTM Bitcoin Research $RELEASE_TAG" \
+            --verify-tag \
+            --fail-on-no-commits \
+            --generate-notes \
+            --latest
