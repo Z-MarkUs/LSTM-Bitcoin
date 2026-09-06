@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lstm-bitcoin-research"
+version = "1.0.0"
+description = "Leakage-controlled Bitcoin return forecasting with walk-forward LSTM and baseline evaluation."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Hehan Zhao" }]
+keywords = [
+  "bitcoin",
+  "lstm",
+  "machine-learning",
+  "time-series",
+  "walk-forward-validation",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+dependencies = [
+  "matplotlib>=3.8,<4",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+lstm = ["torch>=2.2,<3"]
+notebook = [
+  "ipykernel>=6.29,<7",
+  "nbclient>=0.10,<1",
+  "nbconvert>=7.16,<8",
+  "nbformat>=5.10,<6",
+]
+dev = [
+  "bandit>=1.8,<2",
+  "build>=1.2,<2",
+  "mypy>=1.13,<2",
+  "pip-audit>=2.7,<3",
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.8,<1",
+  "twine>=6,<8",
+]
+
+[project.scripts]
+lstm-bitcoin = "lstm_bitcoin.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Z-MarkUs/LSTM-Bitcoin"
+Documentation = "https://github.com/Z-MarkUs/LSTM-Bitcoin#readme"
+Issues = "https://github.com/Z-MarkUs/LSTM-Bitcoin/issues"
+Source = "https://github.com/Z-MarkUs/LSTM-Bitcoin"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lstm_bitcoin*"]
+
+[tool.setuptools.package-data]
+lstm_bitcoin = ["py.typed"]
+
+[tool.uv]
+required-environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers --cov=lstm_bitcoin --cov-report=term-missing --cov-report=xml"
+testpaths = ["tests"]
+markers = [
+  "lstm: requires the optional CPU PyTorch dependency",
+  "network: performs an explicitly authorized network request",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["lstm_bitcoin"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["lstm_bitcoin"]
+warn_unreachable = true

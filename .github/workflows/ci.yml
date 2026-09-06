@@ -1,0 +1,528 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  quality:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment
+        run: uv sync --locked --extra dev --extra lstm
+      - name: Lint
+        run: uv run --frozen ruff check src tests scripts notebooks
+      - name: Check formatting
+        run: uv run --frozen ruff format --check src tests scripts notebooks
+      - name: Type check
+        run: uv run --frozen mypy src/lstm_bitcoin
+
+  tests:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    env:
+      PYTHONHASHSEED: "0"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked test environment
+        run: uv sync --locked --extra dev --extra lstm
+      - name: Assert the CPU-only PyTorch build
+        run: >-
+          uv run --frozen python -c
+          "import torch; assert '+cpu' in torch.__version__, torch.__version__; assert not torch.cuda.is_available()"
+      - name: Run offline tests with branch coverage
+        run: >-
+          uv run --frozen pytest -m "not network"
+          --cov=lstm_bitcoin
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=90
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  reference-integrity:
+    name: Verify checked-in reference evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment
+        run: uv sync --locked
+      - name: Require the complete evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          for artifact in \
+            manifest.json \
+            metrics.json \
+            fold_metrics.csv \
+            folds.csv \
+            predictions.csv \
+            seed_metrics.csv \
+            seed_predictions.csv \
+            signal_metrics.csv \
+            signal_simulation.csv \
+            training.csv \
+            SHA256SUMS; do
+            test -s "evaluation/results/reference-v1/$artifact"
+          done
+      - name: Verify provenance and checksums
+        run: >-
+          uv run --frozen lstm-bitcoin verify
+          --run evaluation/results/reference-v1
+      - name: Validate the frozen data and source declaration
+        run: >-
+          uv run --frozen lstm-bitcoin data validate
+          --data data/btc_usd_daily.csv
+          --manifest data/source-manifest.json
+      - name: Bind evidence to the tracked inputs and code
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --frozen python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import subprocess
+          import tomllib
+
+          root = pathlib.Path.cwd()
+
+          def digest(path: pathlib.Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          run_manifest = json.loads(
+              (root / "evaluation/results/reference-v1/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          source_manifest = json.loads(
+              (root / "data/source-manifest.json").read_text(encoding="utf-8")
+          )
+          inputs = run_manifest["inputs"]
+          code = run_manifest["code"]
+          revision = code["revision"]
+          assert re.fullmatch(r"[0-9a-f]{40}", revision)
+          assert code["dirty"] is False
+          subprocess.run(
+              ["git", "merge-base", "--is-ancestor", revision, "HEAD"], check=True
+          )
+          model_paths = (
+              "src/lstm_bitcoin",
+              "configs/reference.toml",
+              "data/btc_usd_daily.csv",
+              "data/source-manifest.json",
+              "pyproject.toml",
+              "uv.lock",
+          )
+          changed_model_paths = subprocess.check_output(
+              ["git", "diff", "--name-only", f"{revision}..HEAD", "--", *model_paths],
+              text=True,
+          ).splitlines()
+          assert not changed_model_paths, (
+              "model-affecting files changed after the recorded clean revision: "
+              f"{changed_model_paths}"
+          )
+          assert inputs["config_sha256"] == digest(root / "configs/reference.toml")
+          assert inputs["data_sha256"] == digest(root / "data/btc_usd_daily.csv")
+          assert inputs["source_manifest_sha256"] == digest(
+              root / "data/source-manifest.json"
+          )
+          assert inputs["source"] == source_manifest["source"]
+          assert inputs["processed"] == source_manifest["processed"]
+          with (root / "pyproject.toml").open("rb") as handle:
+              project_version = tomllib.load(handle)["project"]["version"]
+          assert code["package_version"] == project_version
+          PY
+
+  build:
+    name: Build and smoke-test release assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the locked environment
+        run: uv sync --locked --extra dev
+      - name: Build wheel and source distribution
+        run: uv build --no-sources
+      - name: Check package metadata
+        run: uv run --frozen twine check dist/*
+      - name: Inspect distribution contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --frozen python - <<'PY'
+          import pathlib
+          import tarfile
+          import zipfile
+
+          distribution_root = pathlib.Path("dist")
+          entries = sorted(distribution_root.iterdir())
+          distributions = [
+              path
+              for path in entries
+              if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+          ]
+          assert len(distributions) == 2, distributions
+          unexpected = [
+              path.name
+              for path in entries
+              if path not in distributions and path.name != ".gitignore"
+          ]
+          assert not unexpected, f"unexpected build output: {unexpected}"
+
+          forbidden_suffixes = (
+              ".h5",
+              ".keras",
+              ".pickle",
+              ".pkl",
+              ".pt",
+              ".pth",
+              ".pyc",
+              ".pyo",
+          )
+          forbidden_names = {".DS_Store", ".env"}
+
+          def validate(names: list[str], artifact: pathlib.Path) -> None:
+              normalized = [name.replace("\\", "/") for name in names]
+              forbidden = [
+                  name
+                  for name in normalized
+                  if "__pycache__" in name
+                  or pathlib.PurePosixPath(name).name in forbidden_names
+                  or name.endswith(forbidden_suffixes)
+              ]
+              assert not forbidden, (
+                  f"{artifact.name} contains generated, private, or executable "
+                  f"model files: {forbidden}"
+              )
+              if artifact.suffix == ".whl":
+                  required = ("lstm_bitcoin/__init__.py", "lstm_bitcoin/py.typed")
+                  missing = [item for item in required if item not in normalized]
+                  assert not missing, f"{artifact.name} is missing package files: {missing}"
+
+          for artifact in distributions:
+              if artifact.suffix == ".whl":
+                  with zipfile.ZipFile(artifact) as archive:
+                      validate(archive.namelist(), artifact)
+              elif artifact.name.endswith(".tar.gz"):
+                  with tarfile.open(artifact, "r:gz") as archive:
+                      validate(archive.getnames(), artifact)
+              else:
+                  raise AssertionError(f"unexpected build artifact: {artifact}")
+          PY
+      - name: Install and smoke-test exact distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          constraints="$RUNNER_TEMP/lstm-bitcoin-runtime-constraints.txt"
+          uv export --locked --no-dev --no-emit-project --no-hashes \
+            --output-file "$constraints"
+          version="$(
+            uv run --frozen python - <<'PY'
+          import pathlib
+          import tomllib
+
+          with pathlib.Path("pyproject.toml").open("rb") as file:
+              print(tomllib.load(file)["project"]["version"])
+          PY
+          )"
+          wheel="dist/lstm_bitcoin_research-${version}-py3-none-any.whl"
+          sdist="dist/lstm_bitcoin_research-${version}.tar.gz"
+          test -f "$wheel"
+          test -f "$sdist"
+
+          smoke_distribution() {
+            local artifact="$1"
+            local name="$2"
+            local environment="$RUNNER_TEMP/$name"
+
+            python -m venv "$environment"
+            "$environment/bin/python" -m pip install \
+              --disable-pip-version-check \
+              --constraint "$constraints" \
+              "$artifact"
+            "$environment/bin/python" -m pip check
+            "$environment/bin/python" -c "import lstm_bitcoin"
+            "$environment/bin/lstm-bitcoin" --help >/dev/null
+          }
+
+          smoke_distribution "$wheel" "lstm-bitcoin-wheel"
+          smoke_distribution "$sdist" "lstm-bitcoin-sdist"
+      - name: Generate the locked default-runtime SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(
+            uv run --frozen python - <<'PY'
+          import pathlib
+          import tomllib
+
+          with pathlib.Path("pyproject.toml").open("rb") as file:
+              print(tomllib.load(file)["project"]["version"])
+          PY
+          )"
+          requirements="$RUNNER_TEMP/lstm-bitcoin-runtime-requirements.txt"
+          sbom="dist/lstm-bitcoin-runtime-sbom-${version}.cdx.json"
+          uv export --locked --no-dev --no-emit-project --no-hashes \
+            --output-file "$requirements"
+          uv run --frozen pip-audit \
+            --strict \
+            --requirement "$requirements" \
+            --no-deps \
+            --disable-pip \
+            --format cyclonedx-json \
+            --output "$sbom"
+          uv run --frozen python - "$sbom" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          document = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert document["bomFormat"] == "CycloneDX"
+          assert document["components"], "SBOM contains no runtime components"
+          PY
+      - name: Package reference evidence and write checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(
+            uv run --frozen python - <<'PY'
+          import pathlib
+          import tomllib
+
+          with pathlib.Path("pyproject.toml").open("rb") as file:
+              print(tomllib.load(file)["project"]["version"])
+          PY
+          )"
+          wheel="lstm_bitcoin_research-${version}-py3-none-any.whl"
+          sdist="lstm_bitcoin_research-${version}.tar.gz"
+          reference="lstm-bitcoin-reference-${version}.tar.gz"
+          sbom="lstm-bitcoin-runtime-sbom-${version}.cdx.json"
+          reference_root="lstm-bitcoin-reference-${version}"
+          reference_stage="build/$reference_root"
+
+          rm -rf "$reference_stage"
+          mkdir -p "$reference_stage"
+          git archive --format=tar HEAD | tar --extract --file=- --directory "$reference_stage"
+          uv run --frozen python - "$reference_stage" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          stage = pathlib.Path(sys.argv[1])
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+          tracked = sorted(path for path in tracked if path)
+          files = {
+              path: hashlib.sha256(stage.joinpath(path).read_bytes()).hexdigest()
+              for path in tracked
+          }
+          manifest = {
+              "files": files,
+              "schema_version": 1,
+              "source_revision": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+          }
+          stage.joinpath("REFERENCE_MANIFEST.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            --create --file=- --directory build "$reference_root" \
+            | gzip --no-name > "dist/$reference"
+          uv run --frozen python - "dist/$reference" "$reference_root" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import sys
+          import tarfile
+
+          archive_path, root = sys.argv[1:]
+          with tarfile.open(archive_path, "r:gz") as archive:
+              manifest_name = f"{root}/REFERENCE_MANIFEST.json"
+              manifest_file = archive.extractfile(manifest_name)
+              assert manifest_file is not None
+              manifest = json.load(manifest_file)
+              assert manifest["schema_version"] == 1
+              assert manifest["source_revision"] == subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip()
+              tracked = manifest["files"]
+              assert isinstance(tracked, dict) and tracked
+              for path, expected_digest in tracked.items():
+                  parsed = pathlib.PurePosixPath(path)
+                  assert not parsed.is_absolute() and ".." not in parsed.parts
+                  payload = archive.extractfile(f"{root}/{path}")
+                  assert payload is not None, path
+                  assert hashlib.sha256(payload.read()).hexdigest() == expected_digest
+              actual = {member.name for member in archive.getmembers() if member.isfile()}
+          expected = {f"{root}/{path}" for path in tracked} | {manifest_name}
+          assert actual == expected, f"reference archive differs: {sorted(actual ^ expected)}"
+          PY
+          (
+            cd dist
+            sha256sum -- "$wheel" "$sdist" "$reference" "$sbom" > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+      - name: Upload release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets-${{ github.run_attempt }}
+          path: dist/
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 14
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install all locked extras
+        run: uv sync --locked --all-extras
+      - name: Audit the locked default runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          requirements="$RUNNER_TEMP/lstm-bitcoin-runtime-requirements.txt"
+          uv export --locked --no-dev --no-emit-project --no-hashes \
+            --output-file "$requirements"
+          uv run --frozen pip-audit \
+            --strict \
+            --requirement "$requirements" \
+            --no-deps \
+            --disable-pip
+      - name: Audit the complete locked environment
+        run: uv run --frozen pip-audit --skip-editable
+      - name: Audit the CPU PyTorch version through OSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          requirement="$RUNNER_TEMP/lstm-bitcoin-torch-requirement.txt"
+          torch_version="$(
+            uv run --frozen python - <<'PY'
+          from importlib.metadata import version
+
+          print(version("torch").split("+", maxsplit=1)[0])
+          PY
+          )"
+          printf 'torch==%s\n' "$torch_version" > "$requirement"
+          uv run --frozen pip-audit \
+            --strict \
+            --vulnerability-service osv \
+            --requirement "$requirement" \
+            --no-deps \
+            --disable-pip
+      - name: Run static security analysis
+        run: uv run --frozen bandit -q -r src/lstm_bitcoin
+
+  reference-reproduction:
+    name: Reproduce tagged reference evidence
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/reference-evaluation.yml
+    permissions:
+      contents: read
+
+  provenance:
+    name: Attest tagged release assets
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [quality, tests, reference-integrity, reference-reproduction, build, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets-${{ github.run_attempt }}
+          path: dist
+      - name: Verify checksums before attestation
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - name: Attest tag-build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.cdx.json
+            dist/SHA256SUMS

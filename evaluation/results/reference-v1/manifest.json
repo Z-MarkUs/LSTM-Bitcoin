@@ -1,0 +1,237 @@
+{
+  "artifacts": {
+    "fold_metrics.csv": "39da94d4b2f1830db96ac1a97f08759fe47ac33dc4c3f7472f5ce221acfad5f5",
+    "folds.csv": "6141b88f12b0bf16a4bac5844f035ab8b10d2a1fc4194616527d4031f543ad9b",
+    "metrics.json": "427d90832229dcdb94ce3ee9bed5c6f34318bdf0f77c92376b536a939ac22202",
+    "predictions.csv": "9aaba0936fa6d86322ba653fac5d854bd0b28a4dada03fcc183458e3688f0156",
+    "seed_metrics.csv": "b0c1ff5d81e709c3d016d963a8ac975aceb264b9e5534a7f1bd1b9e2782f0776",
+    "seed_predictions.csv": "de900e30ef3f4f680a5d429a15771370952ee03d7de9f0f0a3b50d883a753bba",
+    "signal_metrics.csv": "fb9b4e506a27701c527002efafbc54356e6a52e1e0eb27342389502887065f4d",
+    "signal_simulation.csv": "fcc4b6fb0623243cba295d52eef96a53602bf0318e25cab1f7c95b83851d7797",
+    "training.csv": "0b1d57b859baefb33ecd208c8124d87edfc3864fffac2e77207951a9930be8ed"
+  },
+  "code": {
+    "dirty": false,
+    "package_version": "1.0.0",
+    "revision": "5d49cf19bcee31f550f6453dee581a87824de342"
+  },
+  "command": [
+    "lstm-bitcoin",
+    "reproduce",
+    "--config",
+    "configs/reference.toml",
+    "--data",
+    "data/btc_usd_daily.csv",
+    "--manifest",
+    "data/source-manifest.json",
+    "--output",
+    "evaluation/results/reference-v1",
+    "--models",
+    "all"
+  ],
+  "environment": {
+    "dependencies": {
+      "matplotlib": "3.11.1",
+      "numpy": "2.5.2",
+      "torch": "2.14.0+cpu"
+    },
+    "implementation": "CPython",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.14"
+  },
+  "experiment": {
+    "experiment": {
+      "end_date": "2025-12-31",
+      "first_test_year": 2018,
+      "horizon": 1,
+      "last_test_year": 2025,
+      "lookback": 30,
+      "name": "reference-v1",
+      "seeds": [
+        7,
+        17,
+        29
+      ],
+      "start_date": "2013-01-01",
+      "transaction_cost_bps": 10.0,
+      "validation_years": 1
+    },
+    "lstm": {
+      "batch_size": 128,
+      "epochs": 25,
+      "gradient_clip": 1.0,
+      "hidden_size": 16,
+      "layers": 1,
+      "learning_rate": 0.001,
+      "patience": 4,
+      "weight_decay": 0.0001
+    },
+    "ridge": {
+      "alpha": 10.0
+    }
+  },
+  "features": {
+    "names": [
+      "log_return_1d",
+      "log_return_7d",
+      "log_return_30d",
+      "realized_volatility_7d",
+      "realized_volatility_30d"
+    ],
+    "policy": "every feature window ends at the origin; targets occur later"
+  },
+  "folds": [
+    {
+      "fold": 1,
+      "test_end": "2018-12-31",
+      "test_samples": 365,
+      "test_start": "2018-01-01",
+      "test_year": 2018,
+      "train_end": "2016-12-31",
+      "train_samples": 1401,
+      "train_start": "2013-03-02",
+      "validation_end": "2017-12-31",
+      "validation_samples": 365,
+      "validation_start": "2017-01-01"
+    },
+    {
+      "fold": 2,
+      "test_end": "2019-12-31",
+      "test_samples": 365,
+      "test_start": "2019-01-01",
+      "test_year": 2019,
+      "train_end": "2017-12-31",
+      "train_samples": 1766,
+      "train_start": "2013-03-02",
+      "validation_end": "2018-12-31",
+      "validation_samples": 365,
+      "validation_start": "2018-01-01"
+    },
+    {
+      "fold": 3,
+      "test_end": "2020-12-31",
+      "test_samples": 366,
+      "test_start": "2020-01-01",
+      "test_year": 2020,
+      "train_end": "2018-12-31",
+      "train_samples": 2131,
+      "train_start": "2013-03-02",
+      "validation_end": "2019-12-31",
+      "validation_samples": 365,
+      "validation_start": "2019-01-01"
+    },
+    {
+      "fold": 4,
+      "test_end": "2021-12-31",
+      "test_samples": 365,
+      "test_start": "2021-01-01",
+      "test_year": 2021,
+      "train_end": "2019-12-31",
+      "train_samples": 2496,
+      "train_start": "2013-03-02",
+      "validation_end": "2020-12-31",
+      "validation_samples": 366,
+      "validation_start": "2020-01-01"
+    },
+    {
+      "fold": 5,
+      "test_end": "2022-12-31",
+      "test_samples": 365,
+      "test_start": "2022-01-01",
+      "test_year": 2022,
+      "train_end": "2020-12-31",
+      "train_samples": 2862,
+      "train_start": "2013-03-02",
+      "validation_end": "2021-12-31",
+      "validation_samples": 365,
+      "validation_start": "2021-01-01"
+    },
+    {
+      "fold": 6,
+      "test_end": "2023-12-31",
+      "test_samples": 365,
+      "test_start": "2023-01-01",
+      "test_year": 2023,
+      "train_end": "2021-12-31",
+      "train_samples": 3227,
+      "train_start": "2013-03-02",
+      "validation_end": "2022-12-31",
+      "validation_samples": 365,
+      "validation_start": "2022-01-01"
+    },
+    {
+      "fold": 7,
+      "test_end": "2024-12-31",
+      "test_samples": 366,
+      "test_start": "2024-01-01",
+      "test_year": 2024,
+      "train_end": "2022-12-31",
+      "train_samples": 3592,
+      "train_start": "2013-03-02",
+      "validation_end": "2023-12-31",
+      "validation_samples": 365,
+      "validation_start": "2023-01-01"
+    },
+    {
+      "fold": 8,
+      "test_end": "2025-12-31",
+      "test_samples": 365,
+      "test_start": "2025-01-01",
+      "test_year": 2025,
+      "train_end": "2023-12-31",
+      "train_samples": 3957,
+      "train_start": "2013-03-02",
+      "validation_end": "2024-12-31",
+      "validation_samples": 366,
+      "validation_start": "2024-01-01"
+    }
+  ],
+  "inputs": {
+    "config_path": "configs/reference.toml",
+    "config_sha256": "98234d560530acb38ea70eed19786c045fa3d9a7b52711364d7edc181eb19d2d",
+    "data_path": "data/btc_usd_daily.csv",
+    "data_sha256": "a873c628babe5a9978498e918ddcebc8115a6beedfd53a8062d372e864d3ee22",
+    "processed": {
+      "date_filter": {
+        "end_inclusive": "2025-12-31",
+        "reason": "freeze complete calendar years through 2025 for time-ordered evaluation",
+        "start_inclusive": "2013-01-01"
+      },
+      "end_date": "2025-12-31",
+      "missing_value_policy": "skip source rows with missing PriceUSD before filtering; require the retained reference period to be gap-free",
+      "output_columns": [
+        "date",
+        "close_usd"
+      ],
+      "path": "data/btc_usd_daily.csv",
+      "rows": 4748,
+      "selected_columns": [
+        "time",
+        "PriceUSD"
+      ],
+      "sha256": "a873c628babe5a9978498e918ddcebc8115a6beedfd53a8062d372e864d3ee22",
+      "source_rows_skipped_for_missing_price": 562,
+      "start_date": "2013-01-01"
+    },
+    "source": {
+      "attribution": "Coin Metrics Community Data, BTC daily PriceUSD",
+      "commit": "f1a36afb962731c387bb03982758ab0103063da5",
+      "license": "CC BY-NC 4.0",
+      "path": "csv/btc.csv",
+      "repository": "https://github.com/coinmetrics/data",
+      "sha256": "06495ff8e643432e6948b7b4686ce44fc106217287dabdc1b38351d9ddec46c3",
+      "timestamp_convention": "PriceUSD daily close at the 00:00 UTC cutoff, labeled by Coin Metrics using the beginning-of-interval date convention",
+      "timezone": "UTC",
+      "url": "https://raw.githubusercontent.com/coinmetrics/data/f1a36afb962731c387bb03982758ab0103063da5/csv/btc.csv"
+    },
+    "source_manifest_path": "data/source-manifest.json",
+    "source_manifest_sha256": "9ee780ad64eed2a2efaf6c5be4d6a3cdd8463a944e290516e3ddd08fb40beef6"
+  },
+  "limitations": [
+    "historical observational study; no evidence of future profitability",
+    "single reference price series with idealized close-to-close execution",
+    "signal simulation omits market impact, taxes, custody, and outages",
+    "Coin Metrics data is separately licensed CC BY-NC 4.0"
+  ],
+  "schema_version": 1
+}
