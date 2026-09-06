@@ -103,6 +103,7 @@ def test_generate_plots_is_verified_complete_and_deterministic(tmp_path: Path) -
     assert set(verify_checksums(output)) == set(first_payloads)
     for payload in first_payloads.values():
         assert payload.startswith(b"<?xml")
+        assert all(line == line.rstrip() for line in payload.splitlines())
 
     with pytest.raises(FileExistsError, match="--force"):
         generate_plots(run, output)

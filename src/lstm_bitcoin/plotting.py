@@ -74,6 +74,9 @@ def _style() -> None:
 def _save(figure: Any, path: Path) -> None:
     figure.savefig(path, format="svg", bbox_inches="tight", metadata={"Date": None})
     plt.close(figure)
+    payload = path.read_text(encoding="utf-8")
+    normalized = "\n".join(line.rstrip() for line in payload.splitlines()) + "\n"
+    path.write_text(normalized, encoding="utf-8", newline="\n")
 
 
 def _heading(axis: Any, title: str, subtitle: str) -> None:
