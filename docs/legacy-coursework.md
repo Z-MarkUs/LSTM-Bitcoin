@@ -62,7 +62,6 @@ and generic credential assignments also found no matches.
 GitHub secret scanning was disabled at the time of that audit, so the independent scan
 was important. The result means no secret exposure was identified in this repository;
 it does not prove whether a credential from another system was active or revoked.
-There was no evidence-based reason to submit a GitHub purge request for this repository.
 
 ## How to describe the project
 

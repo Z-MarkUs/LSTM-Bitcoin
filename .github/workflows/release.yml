@@ -201,6 +201,19 @@ jobs:
             exit 1
           fi
 
+          release_notes="$(cat <<EOF
+          **Data and use notice:** Project-authored code and documentation are MIT-licensed.
+          The curated data and data-derived reference forecasts, tables, notebook outputs,
+          and figures remain subject to CC BY-NC 4.0.
+
+          Source attribution: Coin Metrics Community Data, BTC daily PriceUSD.
+          See https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/DATA_LICENSE.md.
+
+          This release is historical research evidence, not investment advice, a live
+          signal, or a production trading system.
+          EOF
+          )"
+
           gh release create "$RELEASE_TAG" \
             "dist/lstm_bitcoin_research-${RELEASE_VERSION}-py3-none-any.whl" \
             "dist/lstm_bitcoin_research-${RELEASE_VERSION}.tar.gz" \
@@ -211,5 +224,6 @@ jobs:
             --title "LSTM Bitcoin Research $RELEASE_TAG" \
             --verify-tag \
             --fail-on-no-commits \
+            --notes "$release_notes" \
             --generate-notes \
             --latest

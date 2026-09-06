@@ -35,4 +35,3 @@ disclosure after a fix is available.
 Market-model error, poor forecast performance, or investment loss is not a software
 security vulnerability. This repository is research software and does not provide
 financial advice or a production trading service.
-

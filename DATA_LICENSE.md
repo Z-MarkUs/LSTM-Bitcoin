@@ -49,6 +49,14 @@ remove that restriction. Anyone planning commercial use must obtain suitable dat
 rights from Coin Metrics or replace the reference dataset with a source whose terms
 permit that use.
 
+This repository is published as a non-monetized research portfolio. Creative
+Commons explains that whether a particular use is NonCommercial depends on its
+purpose and circumstances. This project does not claim that every employment-related
+or business-context use automatically qualifies. If a use may be primarily directed
+toward commercial advantage, obtain permission from Coin Metrics or substitute data
+with suitable rights. See the
+[Creative Commons NonCommercial guidance](https://creativecommons.org/faq/#does-my-use-violate-the-noncommercial-clause-of-the-licenses).
+
 The processed two-column snapshot, reference predictions, tables, and figures may be
 derived from the licensed data. Treat those materials as CC BY-NC 4.0 unless a
 rights-qualified review establishes otherwise. This file is a project licensing

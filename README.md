@@ -16,8 +16,8 @@ made in chronological order?**
 > **0.022832** for the zero-return baseline. The 95% moving-block bootstrap interval
 > for the MAE difference was **[-0.000064, 0.000160]**, which includes zero.
 
-That negative result is intentional portfolio evidence: the project makes the
-baseline, leakage controls, uncertainty, data rights, and reproducibility more
+Reporting the negative result is intentional portfolio evidence: the project makes
+the baseline, leakage controls, uncertainty, data rights, and reproducibility more
 important than a flattering headline.
 
 ![Out-of-sample MAE comparison](docs/assets/forecast_mae.svg)
@@ -54,7 +54,7 @@ before interpreting the [equity view](docs/assets/signal_equity.svg).
   the validation year controls early stopping and the outer test year remains unseen.
 - **Seed visibility.** Seeds 7, 17, and 29 are retained separately, then averaged.
   Their predictions, metrics, and training traces are checked in for review.
-- **Uncertainty over theater.** A fixed 2,000-resample, 30-day moving-block bootstrap
+- **Quantified uncertainty.** A fixed 2,000-resample, 30-day moving-block bootstrap
   accompanies the LSTM-versus-best-baseline MAE difference.
 - **Explicit execution assumptions.** The optional long/flat simulation forms a
   position at the origin, applies it only to the next return, charges one-way turnover

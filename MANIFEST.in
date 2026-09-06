@@ -13,4 +13,3 @@ prune docs
 prune tests
 global-exclude *.py[cod]
 global-exclude .DS_Store
-
