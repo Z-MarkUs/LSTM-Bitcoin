@@ -13,7 +13,7 @@
   "code": {
     "dirty": false,
     "package_version": "1.0.0",
-    "revision": "d8a30c65badbd2e6e89ad90ef18510d713dc86a8"
+    "revision": "5d49cf19bcee31f550f6453dee581a87824de342"
   },
   "command": [
     "lstm-bitcoin",
