@@ -77,6 +77,20 @@ uv run --frozen lstm-bitcoin verify \
   --run evaluation/results/reference-v1
 ```
 
+## Dependency updates and historical evidence
+
+Dependency-only updates preserve the published reference bundle. CI reproduces the
+experiment from the PR's clean, locked environment and compares all metrics,
+folds, predictions, training rows, signal outputs, and input declarations with the
+published reference, using the existing numeric tolerances. The required evidence
+integrity job depends on that reproduction succeeding. Changed dependency versions
+are recorded in the fresh run manifest and printed in the comparison log; the old
+manifest continues to describe the original run. CI uploads the new evidence.
+
+Source, data, configuration, and non-dependency project settings must still match
+the recorded revision. A dependency update that changes the results beyond the
+existing tolerances fails and needs explicit investigation, not a rewritten baseline.
+
 ## Pull requests
 
 Keep changes focused and include:

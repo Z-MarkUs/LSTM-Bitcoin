@@ -85,12 +85,18 @@ jobs:
           retention-days: 14
 
   reference-integrity:
+    needs: reference-reproduction
+    if: always()
     name: Verify checked-in reference evidence
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       PYTHONHASHSEED: "0"
     steps:
+      - name: Require successful reference reproduction
+        env:
+          REPRODUCTION_RESULT: ${{ needs.reference-reproduction.result }}
+        run: test "$REPRODUCTION_RESULT" = success
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -168,8 +174,6 @@ jobs:
               "configs/reference.toml",
               "data/btc_usd_daily.csv",
               "data/source-manifest.json",
-              "pyproject.toml",
-              "uv.lock",
           )
           changed_model_paths = subprocess.check_output(
               ["git", "diff", "--name-only", f"{revision}..HEAD", "--", *model_paths],
@@ -189,6 +193,17 @@ jobs:
           with (root / "pyproject.toml").open("rb") as handle:
               project_version = tomllib.load(handle)["project"]["version"]
           assert code["package_version"] == project_version
+          # Only dependency declarations may differ. Fresh reproduction is a
+          # prerequisite for this job and compares every numeric evidence table.
+          recorded_project = tomllib.loads(subprocess.check_output(
+              ["git", "show", f"{revision}:pyproject.toml"], text=True
+          ))
+          current_project = tomllib.loads((root / "pyproject.toml").read_text())
+          for project in (recorded_project, current_project):
+              project["project"].pop("dependencies", None)
+              project["project"].pop("optional-dependencies", None)
+              project.pop("dependency-groups", None)
+          assert recorded_project == current_project, "non-dependency project settings changed"
           PY
 
   build:
@@ -492,8 +507,7 @@ jobs:
         run: uv run --frozen bandit -q -r src/lstm_bitcoin
 
   reference-reproduction:
-    name: Reproduce tagged reference evidence
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    name: Reproduce reference evidence
     uses: ./.github/workflows/reference-evaluation.yml
     permissions:
       contents: read
