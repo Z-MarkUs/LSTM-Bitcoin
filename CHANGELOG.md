@@ -7,6 +7,12 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Validate dependency updates by reproducing and comparing the reference evidence
+  before the integrity gate, while preserving the original published run and its
+  provenance. Keep source, input, configuration, and result-drift checks enforced.
+
 ## [1.0.0] - 2026-09-06
 
 ### Added
