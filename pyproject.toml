@@ -34,7 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 lstm = ["torch>=2.2,<3"]
 notebook = [
-  "ipykernel>=6.29,<7",
+  "ipykernel>=6.29,<8",
   "nbclient>=0.10,<1",
   "nbconvert>=7.16,<8",
   "nbformat>=5.10,<6",
@@ -42,7 +42,7 @@ notebook = [
 dev = [
   "bandit>=1.8,<2",
   "build>=1.2,<2",
-  "mypy>=1.13,<2",
+  "mypy>=1.13,<3",
   "pip-audit>=2.7,<3",
   "pytest>=9.0.3,<10",
   "pytest-cov>=6,<8",
