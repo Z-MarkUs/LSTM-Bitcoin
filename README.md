@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Z-MarkUs/LSTM-Bitcoin/actions/workflows/ci.yml/badge.svg)](https://github.com/Z-MarkUs/LSTM-Bitcoin/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Z-MarkUs/LSTM-Bitcoin/actions/workflows/codeql.yml/badge.svg)](https://github.com/Z-MarkUs/LSTM-Bitcoin/actions/workflows/codeql.yml)
-[![Python 3.11–3.12](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Python 3.11.5–3.12](https://img.shields.io/badge/Python-3.11.5%2B%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Code license: MIT](https://img.shields.io/badge/code-MIT-0F766E)](LICENSE)
 [![Data: CC BY--NC 4.0](https://img.shields.io/badge/data-CC%20BY--NC%204.0-7C3AED)](DATA_LICENSE.md)
 
@@ -68,7 +68,7 @@ boundaries in [docs/architecture.md](docs/architecture.md) and caveats in
 
 ## Reproduce it
 
-The repository supports Python 3.11 and 3.12; Python 3.12 is the reference
+The repository supports Python 3.11.5+ and 3.12; Python 3.12 is the reference
 environment. Install [uv](https://docs.astral.sh/uv/), then run:
 
 ```bash

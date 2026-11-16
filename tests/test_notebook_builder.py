@@ -60,3 +60,17 @@ def test_notebook_source_check_allows_execution_outputs(tmp_path: Path) -> None:
     builder.write_notebook(notebook, output)
 
     builder.check_notebook(output)
+
+
+def test_published_notebook_exports_html_with_current_selector_stack() -> None:
+    exporter = pytest.importorskip("nbconvert").HTMLExporter()
+    soup_module = pytest.importorskip("bs4")
+    notebook = nbformat.read(ROOT / "notebooks/reference_evaluation.ipynb", as_version=4)
+    html, _resources = exporter.from_notebook_node(notebook)
+    document = soup_module.BeautifulSoup(html, "html.parser")
+    assert document.select_one("html") is not None
+    assert document.select("h1")
+    assert document.select("h2")
+    assert "LSTM-Bitcoin reference evaluation" in document.get_text()
+    assert "Takeaways" in document.get_text()
+    assert document.select("svg, img")

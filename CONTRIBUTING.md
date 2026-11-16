@@ -13,7 +13,7 @@ locked development environment:
 uv sync --locked --all-extras
 ```
 
-The project supports Python 3.11 and 3.12. Do not update a dependency in
+The project supports Python 3.11.5+ and 3.12. Do not update a dependency in
 `pyproject.toml` without committing the matching `uv.lock` change.
 
 ## Local quality gate
@@ -87,7 +87,11 @@ integrity job depends on that reproduction succeeding. Changed dependency versio
 are recorded in the fresh run manifest and printed in the comparison log; the old
 manifest continues to describe the original run. CI uploads the new evidence.
 
-Source, data, configuration, and non-dependency project settings must still match
+The security update raises the minimum Python patch version from 3.11 to 3.11.5
+to support Soup Sieve 4 without downgrading Beautiful Soup. CI explicitly permits
+only this metadata change and tests 3.11.5 as well as current 3.11 and 3.12.
+
+Source, data, configuration, and other non-dependency project settings must still match
 the recorded revision. A dependency update that changes the results beyond the
 existing tolerances fails and needs explicit investigation, not a rewritten baseline.
 

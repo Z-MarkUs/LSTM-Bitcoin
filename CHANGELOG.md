@@ -9,6 +9,11 @@ this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Update the notebook toolchain to Soup Sieve 4.0 and Tornado 6.6.1 for security
+  fixes. Require Python 3.11.5+ (or 3.12) to avoid a legacy Beautiful Soup fallback.
+- Use the uv-selected Python for release smoke environments rather than the
+  runner's system Python; test the minimum supported Python and HTML export.
+
 - Validate dependency updates by reproducing and comparing the reference evidence
   before the integrity gate, while preserving the original published run and its
   provenance. Keep source, input, configuration, and result-drift checks enforced.

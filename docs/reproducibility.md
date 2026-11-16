@@ -12,7 +12,7 @@ The reference evidence binds together:
 - declared LSTM seeds and training settings;
 - every result artifact's SHA-256.
 
-Python 3.12 is the canonical reference environment. Python 3.11 and 3.12 are supported
+Python 3.12 is the canonical reference environment. Python 3.11.5+ and 3.12 are supported
 by CI. A committed <code>uv.lock</code> is required for a release-quality run.
 
 ## Clean reproduction

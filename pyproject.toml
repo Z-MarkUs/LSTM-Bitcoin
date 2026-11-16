@@ -7,7 +7,7 @@ name = "lstm-bitcoin-research"
 version = "1.0.0"
 description = "Leakage-controlled Bitcoin return forecasting with walk-forward LSTM and baseline evaluation."
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11.5,<3.13"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Hehan Zhao" }]

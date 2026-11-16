@@ -45,7 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11.5", "3.11", "3.12"]
     env:
       PYTHONHASHSEED: "0"
       OMP_NUM_THREADS: "1"
@@ -79,6 +79,11 @@ jobs:
         run: >-
           uv run --frozen python scripts/build_notebook.py --execute
           --output build/reference-evaluation.ipynb
+      - name: Smoke-test notebook HTML export
+        run: >-
+          uv run --frozen jupyter nbconvert --to html
+          build/reference-evaluation.ipynb --output reference-evaluation.html
+          --output-dir build
       - name: Upload coverage report
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -203,6 +208,14 @@ jobs:
               ["git", "show", f"{revision}:pyproject.toml"], text=True
           ))
           current_project = tomllib.loads((root / "pyproject.toml").read_text())
+          # This security update only narrows the supported Python patch floor.
+          # Do not ignore arbitrary interpreter-policy changes or other metadata.
+          recorded_python = recorded_project["project"]["requires-python"]
+          current_python = current_project["project"]["requires-python"]
+          if recorded_python != current_python:
+              assert recorded_python == ">=3.11,<3.13"
+              assert current_python == ">=3.11.5,<3.13"
+              recorded_project["project"]["requires-python"] = ">=3.11.5,<3.13"
           for project in (recorded_project, current_project):
               project["project"].pop("dependencies", None)
               project["project"].pop("optional-dependencies", None)
@@ -319,7 +332,7 @@ jobs:
             local name="$2"
             local environment="$RUNNER_TEMP/$name"
 
-            python -m venv "$environment"
+            uv run --frozen python -m venv "$environment"
             "$environment/bin/python" -m pip install \
               --disable-pip-version-check \
               --constraint "$constraints" \
